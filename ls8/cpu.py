@@ -7,7 +7,14 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.ram= [0] * 256
+        self.reg = [0] * 8
+        self.pc = 0
+        self.instructions = {
+            "HLT": 1,
+            "LDI": 130,
+            "PRNT": 71
+        }
 
     def load(self):
         """Load a program into memory."""
@@ -61,5 +68,27 @@ class CPU:
         print()
 
     def run(self):
-        """Run the CPU."""
-        pass
+        # THIS WILL BE THE CURRENT LOCAL ADDRESS STORED IN RUN
+        ir = self.pc
+        running = True
+        #hard coded values, but need to store them in a better way
+        PRNT = 71
+        while running:
+            if self.ram[ir] == self.instructions["LDI"]: 
+                operand_a = self.ram_read(ir + 1)
+                operand_b = self.ram_read(ir + 2)
+                self.reg[operand_a] = operand_b
+                ir += 3
+            elif self.ram[ir] == self.instructions["PRNT"]:
+                index = self.ram[ir + 1]
+                print(self.reg[index])
+                ir += 2
+            elif self.ram[ir] == self.instructions["HLT"] or "HTL":
+                running = False
+    
+
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+    
+    def ram_write(self, MAR, MDR):
+        self.ram[MAR] = MDR
