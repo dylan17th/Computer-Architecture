@@ -3,47 +3,42 @@
 import sys
 
 class CPU:
-    """Main CPU class."""
-
     def __init__(self):
-        """Construct a new CPU."""
         self.ram= [0] * 256
         self.reg = [0] * 8
         self.pc = 0
         self.instructions = {
-            "HLT": 1,
-            "LDI": 130,
-            "PRNT": 71
+            1: self.handle_HLT,
+            130: self.handle_LDI,
+            71: self.handle_PRNT,
+            162: self.handle_MUL
         }
+        self.running = True
+
 
     def load(self):
-        """Load a program into memory."""
-
         address = 0
-
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        program = []
+        if len(sys.argv) is 2:
+            filename = sys.argv[1]
+            with open(f"examples/{filename}") as raw_program:
+                for line in raw_program:
+                    numbers = line.split("#")[0].strip()
+                    if numbers is "":
+                        continue
+                    program.append(int(numbers, 2))
+            for instruction in program:
+                self.ram[address] = instruction
+                address += 1
+        else:
+            print(f"Template: ls8.py filename")
 
 
     def alu(self, op, reg_a, reg_b):
-        """ALU operations."""
-
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -65,27 +60,27 @@ class CPU:
         for i in range(8):
             print(" %02X" % self.reg[i], end='')
 
-        print()
-
     def run(self):
-        # THIS WILL BE THE CURRENT LOCAL ADDRESS STORED IN RUN
-        ir = self.pc
-        running = True
-        #hard coded values, but need to store them in a better way
-        PRNT = 71
-        while running:
-            if self.ram[ir] == self.instructions["LDI"]: 
-                operand_a = self.ram_read(ir + 1)
-                operand_b = self.ram_read(ir + 2)
-                self.reg[operand_a] = operand_b
-                ir += 3
-            elif self.ram[ir] == self.instructions["PRNT"]:
-                index = self.ram[ir + 1]
-                print(self.reg[index])
-                ir += 2
-            elif self.ram[ir] == self.instructions["HLT"] or "HTL":
-                running = False
-    
+        while self.running:
+            ir = self.ram[self.pc]
+            my_bin_len = int(bin(ir >> 6), 2)
+            self.instructions[ir]()
+            self.pc += my_bin_len + 1
+
+    def handle_LDI(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.reg[operand_a] = operand_b
+
+    def handle_PRNT(self):
+        index = self.ram_read(self.pc + 1)
+        print(self.reg[index])
+
+    def handle_MUL(self):
+        self.alu("MUL", self.ram_read(self.pc + 1), self.ram_read(self.pc + 2))
+
+    def handle_HLT(self):
+        self.running = False
 
     def ram_read(self, MAR):
         return self.ram[MAR]
