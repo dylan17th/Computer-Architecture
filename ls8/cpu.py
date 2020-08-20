@@ -6,15 +6,24 @@ class CPU:
     def __init__(self):
         self.ram= [0] * 256
         self.reg = [0] * 8
+        self.SP = 244
         self.pc = 0
+        self.ir = 0 
+        self.MDR = 0
+        self.MAR = 0 
         self.instructions = {
             1: self.handle_HLT,
             130: self.handle_LDI,
             71: self.handle_PRNT,
-            162: self.handle_MUL
+            162: self.handle_MUL,
+            69: self.handle_PUSH,
+            70: self.handle_POP,
+            80: self.handle_CALL,
+            17: self.handle_RET,
+            160: self.handle_ADD
         }
         self.running = True
-
+ 
 
     def load(self):
         address = 0
@@ -62,10 +71,13 @@ class CPU:
 
     def run(self):
         while self.running:
-            ir = self.ram[self.pc]
-            my_bin_len = int(bin(ir >> 6), 2)
-            self.instructions[ir]()
-            self.pc += my_bin_len + 1
+            self.ir = self.ram[self.pc]
+            my_bin_len = int(bin(self.ir >> 6), 2)
+            self.instructions[self.ir]()
+            if self.ir == 17 or self.ir == 80:
+                continue
+            else:
+                self.pc += my_bin_len + 1
 
     def handle_LDI(self):
         operand_a = self.ram_read(self.pc + 1)
@@ -79,8 +91,36 @@ class CPU:
     def handle_MUL(self):
         self.alu("MUL", self.ram_read(self.pc + 1), self.ram_read(self.pc + 2))
 
+    def handle_ADD(self):
+        self.alu("ADD", self.ram_read(self.pc + 1), self.ram_read(self.pc + 2))
+
     def handle_HLT(self):
         self.running = False
+    
+    def handle_PUSH(self):
+        # 1. Decrement the `SP`.
+        self.SP -= 1
+        # 2. Copy the value in the given register to the address pointed to by`SP`.
+        value = self.reg[self.ram[self.pc + 1]]
+        self.ram[self.SP] = value
+
+    
+    def handle_POP(self):
+        value = self.ram[self.SP]
+        self.SP += 1
+        self.reg[self.ram[self.pc + 1]] = value
+    
+    def handle_CALL(self):
+        next_index = self.pc + 2
+        self.SP -= 1
+        self.ram[self.SP] = next_index
+
+        go_to_index = self.pc + 1
+        self.pc = self.reg[self.ram[go_to_index]] 
+
+    def handle_RET(self):
+        self.pc = self.ram[self.SP]
+        self.SP += 1
 
     def ram_read(self, MAR):
         return self.ram[MAR]
