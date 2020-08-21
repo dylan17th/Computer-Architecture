@@ -25,7 +25,15 @@ class CPU:
             85: self.handle_JEQ,
             167: self.handle_CMP,
             86: self.handle_JNE,
-            84: self.handle_JMP
+            84: self.handle_JMP,
+            168: self.handle_AND,
+            170: self.handle_OR,
+            171: self.handle_XOR,
+            105: self.handle_NOT,
+            172: self.handle_SHL,
+            173: self.handle_SHR,
+            164: self.handle_MOD,
+            "HLT": self.handle_HLT
         }
         self.running = True
  
@@ -64,7 +72,20 @@ class CPU:
                 self.FL["G"] = 1
                 self.FL["L"] = 0
                 self.FL["E"] = 0
-                
+        elif op == "SHL":
+            self.reg[reg_a] = int(bin(self.reg[reg_a] << self.reg[reg_b]), 2)
+        elif op == "SHR":
+            self.reg[reg_a] = int(bin(self.reg[reg_a] >> self.reg[reg_b]), 2)
+        elif op == "MOD":
+            self.reg[reg_a] %= self.reg[reg_b]
+        elif op == "AND":
+            self.reg[reg_a] = int(bin(self.reg[reg_a] & self.reg[reg_b]), 2)
+        elif op == "OR":
+            self.reg[reg_a] = int(bin(self.reg[reg_a] | self.reg[reg_b]), 2)
+        elif op == "XOR":
+            self.reg[reg_a] = int(bin(self.reg[reg_a] ^ self.reg[reg_b]), 2)
+        elif op == "NOT":
+            self.reg[reg_a] = int(bin(~self.reg[reg_a]), 2)
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -166,6 +187,58 @@ class CPU:
     def handle_JMP(self):
         reg_spot = self.ram[self.PC + 1]
         self.PC = self.reg[reg_spot]
+
+    def handle_AND(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+        self.alu("AND", reg_a, reg_b)
+        self.PC += my_bin_len + 1
+    
+    def handle_OR(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+        self.alu("OR", reg_a, reg_b)
+        self.PC += my_bin_len + 1
+    
+    def handle_XOR(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+        self.alu("XOR", reg_a, reg_b)
+        self.PC += my_bin_len + 1
+    
+    def handle_NOT(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        self.alu("NOT", reg_a, None)
+        self.PC += my_bin_len + 1
+
+    def handle_SHL(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+        self.alu("SHL", reg_a, reg_b)
+        self.PC += my_bin_len + 1
+
+    def handle_SHR(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+        self.alu("SHR", reg_a, reg_b)
+        self.PC += my_bin_len + 1
+
+    def handle_MOD(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+        if self.reg[reg_b] is 0:
+            print("Error: The value in reg_b is zero")
+            self.PC = "HLT"
+        else:
+            self.alu("MOD", reg_a, reg_b)
+            self.PC += my_bin_len + 1
 
     def ram_read(self, MAR):
         return self.ram[MAR]
