@@ -1,5 +1,3 @@
-"""CPU functionality."""
-
 import sys
 
 class CPU:
@@ -7,10 +5,13 @@ class CPU:
         self.ram= [0] * 256
         self.reg = [0] * 8
         self.SP = 244
-        self.pc = 0
-        self.ir = 0 
-        self.MDR = 0
-        self.MAR = 0 
+        self.PC = 0
+        self.IR = 0 
+        self.FL = {
+            "E": 0,
+            "G": 0, 
+            "L": 0
+        } 
         self.instructions = {
             1: self.handle_HLT,
             130: self.handle_LDI,
@@ -20,11 +21,14 @@ class CPU:
             70: self.handle_POP,
             80: self.handle_CALL,
             17: self.handle_RET,
-            160: self.handle_ADD
+            160: self.handle_ADD,
+            85: self.handle_JEQ,
+            167: self.handle_CMP,
+            86: self.handle_JNE,
+            84: self.handle_JMP
         }
         self.running = True
  
-
     def load(self):
         address = 0
         program = []
@@ -42,28 +46,37 @@ class CPU:
         else:
             print(f"Template: ls8.py filename")
 
-
     def alu(self, op, reg_a, reg_b):
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
+        elif op == "CMP":
+            if reg_a == reg_b:
+                self.FL["E"] = 1
+                self.FL["L"] = 0
+                self.FL["G"] = 0
+            if reg_a < reg_b:
+                self.FL["L"] = 1
+                self.FL["G"] = 0
+                self.FL["E"] = 0
+            if reg_a > reg_b:
+                self.FL["G"] = 1
+                self.FL["L"] = 0
+                self.FL["E"] = 0
+                
         else:
             raise Exception("Unsupported ALU operation")
 
     def trace(self):
-        """
-        Handy function to print out the CPU state. You might want to call this
-        from run() if you need help debugging.
-        """
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
-            self.pc,
+            self.PC,
             #self.fl,
             #self.ie,
-            self.ram_read(self.pc),
-            self.ram_read(self.pc + 1),
-            self.ram_read(self.pc + 2)
+            self.ram_read(self.PC),
+            self.ram_read(self.PC + 1),
+            self.ram_read(self.PC + 2)
         ), end='')
 
         for i in range(8):
@@ -71,56 +84,88 @@ class CPU:
 
     def run(self):
         while self.running:
-            self.ir = self.ram[self.pc]
-            my_bin_len = int(bin(self.ir >> 6), 2)
-            self.instructions[self.ir]()
-            if self.ir == 17 or self.ir == 80:
-                continue
-            else:
-                self.pc += my_bin_len + 1
+            self.IR = self.ram[self.PC]
+            self.instructions[self.IR]()
 
     def handle_LDI(self):
-        operand_a = self.ram_read(self.pc + 1)
-        operand_b = self.ram_read(self.pc + 2)
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        operand_a = self.ram_read(self.PC + 1)
+        operand_b = self.ram_read(self.PC + 2)
         self.reg[operand_a] = operand_b
+        self.PC += my_bin_len + 1
 
     def handle_PRNT(self):
-        index = self.ram_read(self.pc + 1)
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        index = self.ram_read(self.PC + 1)
         print(self.reg[index])
+        self.PC += my_bin_len + 1
 
     def handle_MUL(self):
-        self.alu("MUL", self.ram_read(self.pc + 1), self.ram_read(self.pc + 2))
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        self.alu("MUL", self.ram_read(self.PC + 1), self.ram_read(self.PC + 2))
+        self.PC += my_bin_len + 1
 
     def handle_ADD(self):
-        self.alu("ADD", self.ram_read(self.pc + 1), self.ram_read(self.pc + 2))
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        self.alu("ADD", self.ram_read(self.PC + 1), self.ram_read(self.PC + 2))
+        self.PC += my_bin_len + 1
 
     def handle_HLT(self):
         self.running = False
     
     def handle_PUSH(self):
-        # 1. Decrement the `SP`.
+        my_bin_len = int(bin(self.IR >> 6), 2)
         self.SP -= 1
-        # 2. Copy the value in the given register to the address pointed to by`SP`.
-        value = self.reg[self.ram[self.pc + 1]]
+        value = self.reg[self.ram[self.PC + 1]]
         self.ram[self.SP] = value
+        self.PC += my_bin_len + 1
 
-    
     def handle_POP(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
         value = self.ram[self.SP]
         self.SP += 1
-        self.reg[self.ram[self.pc + 1]] = value
+        self.reg[self.ram[self.PC + 1]] = value
+        self.PC += my_bin_len + 1
     
     def handle_CALL(self):
-        next_index = self.pc + 2
+        next_index = self.PC + 2
         self.SP -= 1
         self.ram[self.SP] = next_index
 
-        go_to_index = self.pc + 1
-        self.pc = self.reg[self.ram[go_to_index]] 
+        go_to_index = self.PC + 1
+        self.PC = self.reg[self.ram[go_to_index]] 
 
     def handle_RET(self):
-        self.pc = self.ram[self.SP]
+        self.PC = self.ram[self.SP]
         self.SP += 1
+
+    def handle_JEQ(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        if self.FL["E"] == 1:
+            jump_to_pc = self.ram[self.PC + 1]
+            self.PC = self.reg[jump_to_pc]
+        else:
+            self.PC += my_bin_len + 1
+    
+    def handle_JNE(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        if self.FL["E"] == 0:
+            jump_to_pc = self.ram[self.PC + 1]
+            self.PC = self.reg[jump_to_pc]
+        else:
+            self.PC += my_bin_len + 1
+
+    def handle_CMP(self):
+        my_bin_len = int(bin(self.IR >> 6), 2)
+        reg_a = self.ram[self.PC + 1]
+        reg_b = self.ram[self.PC + 2]
+
+        self.alu("CMP", self.reg[reg_a], self.reg[reg_b])
+        self.PC += my_bin_len + 1
+
+    def handle_JMP(self):
+        reg_spot = self.ram[self.PC + 1]
+        self.PC = self.reg[reg_spot]
 
     def ram_read(self, MAR):
         return self.ram[MAR]
